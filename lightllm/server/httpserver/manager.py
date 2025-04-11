@@ -636,10 +636,47 @@ class HttpServerManager:
             self.recycle_event.set()
         return
 
+
+    async def pd_handle_loop_from_d(self):
+        if self.pd_mode != NodeRole.P:
+            return
+
+        context = zmq.asyncio.Context(2)
+        self.recv_from_d = context.socket(zmq.PULL)
+        self.recv_from_d.bind(f"tcp://*:{self.args.pd_remote_prefill_port}")
+
+        while True:
+            try:
+                (
+                    prompt,
+                    sampling_params,
+                    multimodal_params,
+                ) = await self.recv_from_d.recv_pyobj()
+
+                # 触发推理的task
+                async def pd_process_generate(
+                    manager: "HttpServerManager", prompt, sampling_params, multimodal_params
+                ):
+                    try:
+                        async for _, _, _, _ in manager.generate(
+                            prompt, sampling_params, multimodal_params, None
+                        ):
+                            pass
+                    except BaseException as e:
+                        logger.error(str(e))
+
+                asyncio.create_task(pd_process_generate(self, prompt, sampling_params, multimodal_params))
+
+            except Exception as e:
+                logger.exception(f"pd loop generate error: {str(e)}")
+
+
     async def pd_handle_loop(self):
-        asyncio.create_task(self.timer_log())
         if self.pd_mode not in [NodeRole.P, NodeRole.D]:
             return
+
+        asyncio.create_task(self.timer_log())
+        asyncio.create_task(self.pd_handle_loop_from_d())
 
         self.host_ip = get_hostname_ip()
         if self.host_ip is None:

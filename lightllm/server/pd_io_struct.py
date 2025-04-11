@@ -84,6 +84,11 @@ class PDTransJoinInfo:
     pd_prefill_nccl_ip: str
     pd_prefill_nccl_port: int
 
+@dataclass
+class RemotePrefillServerInfo:
+    perfill_server_id: int
+    prefill_server_ip: str
+    prefill_server_port: int
 
 @dataclass
 class PDTransLeaveInfo:
