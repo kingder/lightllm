@@ -643,7 +643,7 @@ class HttpServerManager:
 
         context = zmq.asyncio.Context(2)
         self.recv_from_d = context.socket(zmq.PULL)
-        self.recv_from_d.bind(f"tcp://*:{self.args.pd_remote_prefill_port}")
+        self.recv_from_d.bind(f"tcp://*:{self.args.pd_remote_prefill_http_port}")
 
         while True:
             try:
@@ -652,6 +652,8 @@ class HttpServerManager:
                     sampling_params,
                     multimodal_params,
                 ) = await self.recv_from_d.recv_pyobj()
+
+                logger.info(f"received remote prefill prompt: {prompt}")
 
                 # 触发推理的task
                 async def pd_process_generate(
@@ -686,6 +688,7 @@ class HttpServerManager:
             forwarding_tokens_task = None
             try:
                 uri = f"ws://{self.args.pd_master_ip}:{self.args.pd_master_port}/pd_register"
+                print(f"connect to {uri}")
                 async with websockets.connect(uri, max_queue=(2048 * 1024, 2048 * 1023)) as websocket:
                     import socket
 
@@ -713,9 +716,10 @@ class HttpServerManager:
                                 await websocket.send(pickle.dumps((ObjType.TOKEN_PACKS, handle_list)))
                         return
 
-                    forwarding_tokens_task = asyncio.create_task(
-                        up_tokens_to_pd_master(self.forwarding_queue, websocket)
-                    )
+                    if self.pd_mode == NodeRole.D:
+                        forwarding_tokens_task = asyncio.create_task(
+                            up_tokens_to_pd_master(self.forwarding_queue, websocket)
+                        )
 
                     while True:
                         recv_bytes = await websocket.recv()

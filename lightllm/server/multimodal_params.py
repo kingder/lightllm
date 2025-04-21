@@ -93,6 +93,12 @@ class MultimodalParams:
         ret["images"] = [i.to_dict() for i in self.images]
         return ret
 
+    @classmethod
+    def from_dict(cls, data: dict):
+        if 'images' not in data:
+            return cls()
+        return cls(images=data["images"])
+
     def to_origin_dict(self):
         """
         将内容转换为原始请求的形式，主要用于请求转发
